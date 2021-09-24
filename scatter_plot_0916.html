@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+    <select id='mod' onchange="changeMod()">
+    <option value="MDS">MDS</option>
+    <option value="PCA">PCA</option>
+    </select>
+
+    <input type="file" id="myFile">
+    <button onclick="processFile()">Process</button>
+    <div data-role="sizeslider">
+        <label for="size_slider">Size:</label>
+        <input name="size_slider" id="size_slider" oninput="SlideValue(this.value)" type="range" min="1" max="100" value="50">
+        <input name="size_num" id="size_num" type="number" oninput="SlideValue(this.value)" min="1" max="100" value="50">
+    </div>
+    <div class='container'></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/d3-color.v1.min.js"></script>
+    <script src="https://d3js.org/d3-interpolate.v1.min.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <script src="https://unpkg.com/@saehrimnir/druidjs"></script>
+    <script>
+        var data = new Array();
+        var data2 = new Array();
+        var classes1 = new Array();
+        var classes2 = new Array();
+        var shape_size = 30;
+        var W = 500;
+        var state = false;
+        var shape = d3.scaleOrdinal(d3.symbols.map(s => d3.symbol().size(shape_size).type(s)()))
+        var color = d3.scaleOrdinal(d3.schemeDark2)
+
+        function preprocessing() {
+            const attrs = Object.keys(data[0]).filter(a => {
+                return (typeof data[0][a] === "number") && !(new Set(["name", "class", "label", "Species", "island"])).has(a)
+            });
+            data2 = data.map(d => attrs.map((a, i) => d[a]));
+            classes1 = data.map(d => d.Species);
+            //classes2 = data.map(d => d.island);
+        }
+
+        function SlideValue(val) {
+            var view = document.getElementById("size_slider");
+            var box = document.getElementById("size_num");
+            box.value = val;
+            view.value = val;
+            shape_size = val;
+            shape = d3.scaleOrdinal(d3.symbols.map(s => d3.symbol().size(shape_size).type(s)()))
+            if (state == true) {
+                let svg = d3.select('body').select('svg');
+                let gs = svg.selectAll(".point").selectAll('path').attr("d", (d, i) => shape([classes2[i]]));
+            }
+        }
+
+        function get_scale(data_) {
+            let x_extent = d3.extent(data_, d => d[0]);
+            let y_extent = d3.extent(data_, d => d[1]);
+            let x_span = x_extent[1] - x_extent[0];
+            let y_span = y_extent[1] - y_extent[0];
+            const offset = Math.abs(x_span - y_span) / 2;
+
+            let x;
+            let y;
+            if (x_span > y_span) {
+                x_extent[0] -= offset;
+                x_extent[1] += offset;
+            } else {
+                y_extent[0] -= offset;
+                y_extent[1] += offset;
+            }
+            return [
+                d3.scaleLinear().domain(x_extent).rangeRound([20, W - 20]).nice(),
+                d3.scaleLinear().domain(y_extent).rangeRound([20, W - 20]).nice(),
+            ]
+        }
+
+        function get_parm() {
+            return new Array();
+        }
+
+        function wait(t) {
+            return new Promise(resolve => setTimeout(resolve, t))
+        }
+
+        d3.json("https://raw.githubusercontent.com/sangyeop910/iris/main/iris(150).json", function(d) {
+            data = data.slice(1, );
+            preprocessing();
+            data2 = data2.slice(0, data2.length - 1);
+            const X = druid.Matrix.from(data2);
+            var mod = document.getElementById('mod').options[document.getElementById('mod').selectedIndex].value;
+            const DR = druid[mod];
+            const P = get_parm();
+            var dr = new DR(X, ...P);
+            var Y = dr.transform();
+            let [x, y] = get_scale(Y);
+            let svg = d3.select('body').append('svg')
+                .attr("width", W)
+                .attr("viewBox", [0, 0, W, W]);
+
+            let gs = svg.selectAll(".point")
+                .data(Y)
+                .enter()
+                .append("g")
+                .attr("class", "point")
+                .attr("fill", "none")
+                .attr("stroke", (d, i) => color(classes1[i]))
+
+            gs.append("path")
+                .attr("d", (d, i) => shape(classes1[i]));
+
+            let point = svg.selectAll(".point")
+                .data(Y)
+                //.attr("transform", (([px, py], i) => `translate(${x(px)}, ${y(py)})`));
+        })
+
+        function processFile() {
+            var fileSize = 0;
+            var idx = [];
+            var theFile = document.getElementById("myFile");
+            var regex = /^([a-zA-Z0-9\s_\\.\-:])+(.csv|.txt)$/;
+            if (true) {
+                if (typeof(FileReader) != "undefined") {
+                    var table = document.getElementById("myTable");
+                    var headerLine = "";
+                    var myReader = new FileReader();
+                    myReader.onload = function(e) {
+                        var content = myReader.result;
+                        var lines = content.split("\r");
+                        for (var count = 0; count < lines.length; count++) {
+                            var rowContent = lines[count].split(",");
+                            var csv_data = new Object();
+                            for (var i = 0; i < rowContent.length; i++) {
+                                /*if (count != 0 && i == 0) {
+                                    rowContent[i] = rowContent[i].substring(1, );
+                                }*/
+                                if (count != 0 && i != 4) {
+                                    rowContent[i] = parseFloat(rowContent[i]);
+                                }
+                                if (count == 0) {
+                                    idx.push(rowContent[i])
+                                } else {
+                                    csv_data[idx[i]] = rowContent[i];
+                                }
+                                var cellContent = document.createTextNode(rowContent[i]);
+
+                            }
+                            data.push(csv_data);
+                        }
+                        data = data.slice(1, );
+                        preprocessing();
+                        data2 = data2.slice(0, data2.length - 1);
+                        //classes1 = classes1.slice(0, classes1.length - 1);
+                        //classes2 = classes2.slice(0, classes2.length - 1);
+                        const X = druid.Matrix.from(data2);
+                        var mod = document.getElementById('mod').options[document.getElementById('mod').selectedIndex].value;
+                        const DR = druid[mod];
+                        const P = get_parm();
+                        var dr = new DR(X, ...P);
+                        var Y = dr.transform();
+                        let [x, y] = get_scale(Y);
+                        let svg = d3.select('body').append('svg')
+                            .attr("width", W)
+                            .attr("viewBox", [0, 0, W, W]);
+
+                        let gs = svg.selectAll(".point")
+                            .data(Y)
+                            .enter()
+                            .append("g")
+                            .attr("class", "point")
+                            .attr("fill", "none")
+                            .attr("stroke", (d, i) => color(classes1[i]))
+
+                        gs.append("path")
+                            .attr("d", (d, i) => shape(classes1[i]));
+
+                        let point = svg.selectAll(".point")
+                            .data(Y)
+                            .attr("transform", (([px, py], i) => `translate(${x(px)}, ${y(py)})`));
+                    }
+                    myReader.readAsText(theFile.files[0]);
+                }
+            }
+            state = true;
+            return false;
+        }
+
+        function changeMod() {
+            if (state == true) {
+                var mod = document.getElementById('mod').options[document.getElementById('mod').selectedIndex].value;
+                const X = druid.Matrix.from(data2);
+                const DR = druid[mod];
+                const P = get_parm();
+                var dr = new DR(X, ...P);
+                var Y = dr.transform();
+                let [x, y] = get_scale(Y);
+                let svg = d3.select('body').select('svg')
+                    .attr("width", W)
+                    .attr("viewBox", [0, 0, W, W]);
+
+                let gs = svg.selectAll(".point")
+                    .data(Y)
+                    .enter()
+                    .append("g")
+                    .attr("class", "point")
+                    .attr("fill", "none")
+                    .attr("stroke", (d, i) => color(classes2[i]))
+
+                gs.append("path")
+                    .attr("d", (d, i) => shape([classes2[i]]));
+
+                let point = svg.selectAll(".point")
+                    .data(Y)
+                    .attr("transform", (([px, py], i) => `translate(${x(px)}, ${y(py)})`));
+            }
+        }
+    </script>
+</body>
+
+</html>
